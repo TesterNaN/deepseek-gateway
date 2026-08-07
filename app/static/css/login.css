@@ -1,0 +1,203 @@
+/* ========== MD3 设计变量 ========== */
+:root {
+    --md-sys-color-primary: #6750A4;
+    --md-sys-color-on-primary: #FFFFFF;
+    --md-sys-color-primary-container: #EADDFF;
+    --md-sys-color-on-primary-container: #21005D;
+    --md-sys-color-secondary: #625B71;
+    --md-sys-color-on-secondary: #FFFFFF;
+    --md-sys-color-secondary-container: #E8DEF8;
+    --md-sys-color-on-secondary-container: #1D192B;
+    --md-sys-color-surface: #FEF7FF;
+    --md-sys-color-on-surface: #1D1B20;
+    --md-sys-color-surface-variant: #E7E0EC;
+    --md-sys-color-on-surface-variant: #49454F;
+    --md-sys-color-outline: #79747E;
+    --md-sys-color-error: #B3261E;
+    --md-sys-color-on-error: #FFFFFF;
+    --md-sys-color-background: #F7F2FA;
+
+    --md-sys-shape-corner-full: 9999px;
+    --md-sys-shape-corner-large: 28px;
+    --md-sys-shape-corner-medium: 16px;
+    --md-sys-shape-corner-small: 12px;
+
+    --md-sys-elevation-1: 0 1px 2px rgba(0,0,0,0.05);
+    --md-sys-elevation-2: 0 1px 4px rgba(0,0,0,0.05);
+    --md-sys-elevation-3: 0 2px 8px rgba(0,0,0,0.07);
+
+    --md-sys-typescale-body-medium: 14px/20px 'Roboto', sans-serif;
+    --md-sys-typescale-title-large: 22px/28px 'Roboto', sans-serif;
+    --md-sys-typescale-title-medium: 16px/24px 'Roboto', sans-serif;
+    --md-sys-typescale-label-large: 14px/20px 'Roboto', sans-serif;
+}
+
+[data-theme="dark"] {
+    --md-sys-color-primary: #D0BCFF;
+    --md-sys-color-on-primary: #381E72;
+    --md-sys-color-primary-container: #4F378B;
+    --md-sys-color-on-primary-container: #EADDFF;
+    --md-sys-color-secondary: #CCC2DC;
+    --md-sys-color-on-secondary: #332D41;
+    --md-sys-color-secondary-container: #4A4458;
+    --md-sys-color-on-secondary-container: #E8DEF8;
+    --md-sys-color-surface: #141218;
+    --md-sys-color-on-surface: #E6E0E9;
+    --md-sys-color-surface-variant: #49454F;
+    --md-sys-color-on-surface-variant: #CAC4D0;
+    --md-sys-color-outline: #938F99;
+    --md-sys-color-error: #F2B8B5;
+    --md-sys-color-on-error: #601410;
+    --md-sys-color-background: #1D1B20;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font: var(--md-sys-typescale-body-medium);
+    background: var(--md-sys-color-background);
+    color: var(--md-sys-color-on-surface);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    transition: background 0.3s, color 0.3s;
+}
+
+/* 背景启用时：覆盖且不平铺 */
+body.background-enabled {
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;  /* 关键：禁止平铺 */
+    background-attachment: fixed;
+}
+
+/* 登录容器 */
+.login-container {
+    width: 100%;
+    max-width: 400px;
+    padding: 20px;
+}
+
+/* 卡片 */
+.login-box {
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: 32px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: background 0.3s;
+}
+[data-theme="dark"] .login-box {
+    background: rgba(0, 0, 0, 0.35);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.login-box h1 {
+    font: var(--md-sys-typescale-title-large);
+    font-weight: 500;
+    color: var(--md-sys-color-on-surface);
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+/* 表单 */
+form label {
+    display: block;
+    font-size: 12px;
+    color: var(--md-sys-color-on-surface-variant);
+    margin-bottom: 4px;
+    margin-top: 16px;
+}
+form input {
+    font: var(--md-sys-typescale-body-medium);
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: var(--md-sys-shape-corner-small);
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--md-sys-color-on-surface);
+    outline: none;
+    transition: all 0.2s;
+}
+[data-theme="dark"] form input {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255,255,255,0.15);
+}
+form input:focus {
+    border-color: var(--md-sys-color-primary);
+    box-shadow: 0 0 0 3px rgba(103, 80, 164, 0.12);
+    background: var(--md-sys-color-surface);
+}
+
+/* 按钮 */
+.md-button {
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.2px;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    padding: 8px 16px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s;
+    outline: none;
+    font-weight: 500;
+    text-transform: none;
+}
+.md-button--primary {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+    width: 100%;
+    padding: 12px;
+    margin-top: 24px;
+}
+.md-button--primary:hover {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    box-shadow: var(--md-sys-elevation-2);
+}
+
+/* 主题切换按钮固定右上角 */
+.theme-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 100;
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+    box-shadow: var(--md-sys-elevation-2);
+}
+.theme-toggle:hover {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+/* 错误消息 */
+.msg {
+    padding: 10px 14px;
+    border-radius: var(--md-sys-shape-corner-small);
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+.msg.error {
+    background: rgba(244, 67, 54, 0.12);
+    color: #C62828;
+}
+[data-theme="dark"] .msg.error {
+    color: #E57373;
+}
+
+/* 提示 */
+.note {
+    text-align: center;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 12px;
+    margin-top: 16px;
+    opacity: 0.8;
+}

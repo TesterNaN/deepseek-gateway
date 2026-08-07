@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员登录</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap">
+    <script>
+        (function () {
+            function applyTheme(theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+                var btn = document.getElementById('themeToggleBtn');
+                if (btn) {
+                    btn.textContent = theme === 'dark' ? '浅色' : '深色';
+                    btn.title = theme === 'dark' ? '切换到浅色模式' : '切换到深色模式';
+                }
+            }
+            var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            applyTheme(systemDark ? 'dark' : 'light');
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+                applyTheme(e.matches ? 'dark' : 'light');
+            });
+            window.toggleTheme = function () {
+                var current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+                applyTheme(current === 'dark' ? 'light' : 'dark');
+            };
+        })();
+    </script>
+    <link rel="stylesheet" href="/static/css/login.css">
+</head>
+<body class="{% if bg_enabled %}background-enabled{% endif %}">
+    {% if bg_enabled %}
+    <style>
+        body.background-enabled {
+            background-image: url("{{ bg_url }}");
+        }
+    </style>
+    {% endif %}
+
+    <!-- 主题切换按钮：固定在右上角 -->
+    <button id="themeToggleBtn" class="md-button theme-toggle" onclick="window.toggleTheme()">深色</button>
+
+    <div class="login-container">
+        <div class="login-box">
+            <h1>管理员登录</h1>
+            {% if error %}
+            <div class="msg error">{{ error }}</div>
+            {% endif %}
+            <form method="post">
+                <label>用户名</label>
+                <input type="text" name="username" value="admin" required>
+                <label>密码</label>
+                <input type="password" name="password" required>
+                <button type="submit" class="md-button md-button--primary">登录</button>
+            </form>
+            <div class="note">首次启动密码见控制台</div>
+        </div>
+    </div>
+</body>
+</html>

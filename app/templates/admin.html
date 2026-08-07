@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepSeek 中转站管理</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap">
+    <script>
+        (function () {
+            // 每次进入跟随系统，不保存手动选择
+            function applyTheme(theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+                var btn = document.getElementById('themeToggleBtn');
+                if (btn) {
+                    btn.textContent = theme === 'dark' ? '浅色' : '深色';
+                    btn.title = theme === 'dark' ? '切换到浅色模式' : '切换到深色模式';
+                }
+            }
+
+            // 初始跟随系统
+            var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            applyTheme(systemDark ? 'dark' : 'light');
+
+            // 系统主题变化时实时跟随
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+                applyTheme(e.matches ? 'dark' : 'light');
+            });
+
+            // 手动切换（仅本次生效，不保存）
+            window.toggleTheme = function () {
+                var current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+                applyTheme(current === 'dark' ? 'light' : 'dark');
+            };
+        })();
+    </script>
+    <link rel="stylesheet" href="/static/css/admin.css">
+</head>
+<body>
+    <header class="app-bar">
+        <div class="app-bar__leading">
+            <span class="app-bar__title">DeepSeek 中转站管理</span>
+        </div>
+        <div class="app-bar__actions">
+            <button id="themeToggleBtn" class="md-button md-button--text" onclick="window.toggleTheme()">深色</button>
+            <button class="md-button md-button--text" onclick="window.location.href='/logout'">退出</button>
+        </div>
+    </header>
+
+    <main class="content">
+        <div class="container">
+
+            <!-- 上游配置卡片 -->
+            <div class="md-card">
+                <h2 class="md-card__title">上游配置</h2>
+                <div class="md-card__body">
+                    <p class="field-label">当前 Key</p>
+                    <div class="current-key">
+                        <span id="upstreamMasked">加载中...</span>
+                    </div>
+                    <div class="row-inputs">
+                        <input type="text" id="newUpstreamKey" class="md-input" placeholder="输入新的上游 API Key">
+                        <button class="md-button md-button--primary" onclick="setUpstreamKey()">更新 Key</button>
+                        <button class="md-button md-button--secondary" onclick="viewBalance()">查看余额</button>
+                    </div>
+                    <div id="balanceResult" style="margin-top: 16px;"></div>
+                </div>
+            </div>
+
+            <!-- 模型定价卡片 -->
+            <div class="md-card">
+                <div class="md-card__header">
+                    <h2 class="md-card__title">模型定价配置</h2>
+                    <span class="badge" id="pricingStatus"></span>
+                </div>
+                <div class="md-card__body">
+                    <p class="helper-text">价格单位：元 / 百万 tokens。修改后立即生效。</p>
+                    <div class="table-wrapper">
+                        <table class="md-table">
+                            <thead>
+                                <tr>
+                                    <th>模型</th>
+                                    <th>缓存命中输入</th>
+                                    <th>缓存未命中输入</th>
+                                    <th>输出</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="pricingTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="pricing-add">
+                        <input type="text" id="newModelName" class="md-input" placeholder="模型名">
+                        <input type="number" id="newInputHit" class="md-input" placeholder="命中" step="0.001" min="0">
+                        <input type="number" id="newInputMiss" class="md-input" placeholder="未命中" step="0.001" min="0">
+                        <input type="number" id="newOutput" class="md-input" placeholder="输出" step="0.001" min="0">
+                        <button class="md-button md-button--secondary" onclick="addPricingRow()">添加行</button>
+                    </div>
+                    <div class="pricing-actions">
+                        <button class="md-button md-button--primary" onclick="savePricing()">保存定价</button>
+                        <button class="md-button md-button--text" onclick="resetPricing()">恢复默认</button>
+                    </div>
+                    <div id="pricingMsg" class="msg"></div>
+                </div>
+            </div>
+
+            <!-- 修改密码卡片 -->
+            <div class="md-card">
+                <h2 class="md-card__title">修改管理员密码 <span class="badge" id="pwdMode"></span></h2>
+                <p class="helper-text" id="pwdModeDetail"></p>
+                <div class="row-inputs">
+                    <input type="password" id="oldPwd" class="md-input" placeholder="旧密码">
+                    <input type="password" id="newPwd" class="md-input" placeholder="新密码 (至少6位)">
+                    <button class="md-button md-button--primary" onclick="changePassword()">修改密码</button>
+                </div>
+                <div id="pwdMsg"></div>
+            </div>
+
+            <!-- 虚拟 Key 管理卡片 -->
+            <div class="md-card">
+                <div class="md-card__header">
+                    <h2 class="md-card__title">虚拟密钥管理</h2>
+                    <span class="badge">人民币余额</span>
+                </div>
+                <div class="md-card__body">
+                    <p class="helper-text">按实际 token 消耗 × 模型单价计费，从余额中扣除</p>
+                    <div class="actions">
+                        <input type="text" id="new_tenant" class="md-input" value="default" style="width: 100px;">
+                        <span class="field-label">租户</span>
+                        <input type="number" id="new_balance" class="md-input" value="0.00" step="0.01" style="width: 100px;">
+                        <span class="field-label">初始余额(元)</span>
+                        <button class="md-button md-button--primary" onclick="addKey()">添加新 Key</button>
+                        <button class="md-button md-button--text" onclick="loadKeys()">手动刷新</button>
+                    </div>
+                    <div id="message" class="msg"></div>
+                    <div class="table-wrapper">
+                        <table class="md-table">
+                            <thead>
+                                <tr>
+                                    <th>虚拟 Key</th>
+                                    <th>租户</th>
+                                    <th>余额(元)</th>
+                                    <th>累计充值(元)</th>
+                                    <th>累计消费(元)</th>
+                                    <th>并发限制</th>
+                                    <th>创建时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="keyTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>
