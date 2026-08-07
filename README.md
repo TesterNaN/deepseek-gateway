@@ -4,6 +4,10 @@
 
 如果你正在开发一款内置 LLM 功能的软件、游戏、Bot 或团队内部工具，需要让多个用户/玩家/成员共享 DeepSeek 能力，这个项目就是为你准备的。
 
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.104%2B-brightgreen)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
 ---
 
 ## 🤔 它解决什么问题？
@@ -62,7 +66,7 @@
 ### 1. 安装
 
 ```bash
-git clone https://github.com/yourname/deepseek-api-gateway.git
+git clone https://github.com/yourname/deepseek-gateway.git
 cd deepseek-api-gateway
 pip install -r requirements.txt
 ```
