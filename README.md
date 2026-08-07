@@ -66,8 +66,8 @@
 ### 1. 安装
 
 ```bash
-git clone https://github.com/yourname/deepseek-gateway.git
-cd deepseek-api-gateway
+git clone https://github.com/TesterNaN/deepseek-gateway.git
+cd deepseek-gateway
 pip install -r requirements.txt
 ```
 
