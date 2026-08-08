@@ -150,7 +150,7 @@ curl http://你的服务器:5000/chat/completions \
 本项目将「业务端口」与「管理端口」分离，确保安全性和灵活性。
 
 | 配置项 | 默认值 | 作用 |
-|---|---|---|---|
+|---|---|---|
 | `proxy_host` | `0.0.0.0` | 代理服务监听地址 |
 | `proxy_port` | `5000` | **业务端口**，客户端请求的入口 |
 | `admin_host` | `127.0.0.1` | 管理服务监听地址 |
@@ -213,6 +213,23 @@ python run.py
 - 如果你想用 Unsplash、Bing 每日壁纸等任意图源，填上对应的图片 URL 即可
 
 > 提示：`https://t.alcy.cc/pc` 是一个免费的随机电脑壁纸 API。如果你有更稳定的图源，也可以替换。
+
+---
+
+## 🧪 功能测试脚本
+
+项目附带完整测试脚本 `test_full.py`，覆盖登录、Key 管理、定价、上游配置、背景、代理功能及错误场景。
+
+```bash
+# 交互输入密码
+python test_full.py
+
+# 或通过环境变量指定密码（适合自动化）
+set ADMIN_PASSWORD=your_password && python test_full.py   # Windows
+ADMIN_PASSWORD=your_password python test_full.py           # Linux/Mac
+```
+
+> 测试会自动创建动态测试 Key（`sk-test-...`），结束后自动删除，不会影响现有数据。测试代理功能需要已配置上游 API Key。
 
 ---
 
