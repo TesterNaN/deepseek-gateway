@@ -4,3 +4,4 @@ httpx>=0.25
 aiosqlite>=0.19
 werkzeug>=3.0
 pydantic>=2.0
+chinesecalendar>=1.11.0

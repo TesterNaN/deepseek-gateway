@@ -333,70 +333,73 @@ Content-Type: application/json
 
 ### 2. 收费 / 计费相关接口
 
-#### 获取当前模型定价（含自定义）
+管理面板“模型定价配置”可选择两种模式，点击“保存定价”后生效：
 
-```
+- **固定价格 `fixed`**（默认）：全天使用固定单价，可按模型自定义。已有数据库中的自定义价格会保留，升级不会覆盖。未自定义的模型采用下表高峰价。
+- **官方峰谷 `peak_valley`**：按下表官方价格自动切换，不使用固定模式的自定义价格；切回固定模式后，自定义价格仍保留。
+
+价格核对于 2026-11-10，单位为元 / 百万 tokens，来源：[DeepSeek 官方定价](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)。本项目使用内置价格表，官网后续调价需更新配置代码。
+
+| 模型 | 时段 | 输入缓存命中 | 输入缓存未命中 | 输出 |
+| --- | --- | ---: | ---: | ---: |
+| deepseek-flash | 高峰 | 0.04 | 2 | 8 |
+| deepseek-flash | 空闲 | 0.02 | 1 | 4 |
+| deepseek-v4-pro | 高峰 | 0.30 | 9 | 27 |
+| deepseek-v4-pro | 空闲 | 0.15 | 4.5 | 13.5 |
+
+高峰为**北京时间周一至周五，排除中国法定节假日，09:00（含）–12:00（不含）、14:00（含）–18:00（不含）**。其余时间含周末全天为空闲时段，即使周末调休补班也按空闲价。节假日由 `chinesecalendar` 提供，部署前执行 `pip install -r requirements.txt`，每年国务院公布新日历后及时升级 `pip install -U chinesecalendar`。日历未覆盖的年份会返回 503 并提示升级，避免错误收费。
+
+每次请求在转发上游之前锁定价格，流式和非流式使用相同规则，跨时段或请求中途改价不改变本次费率。费用 =（缓存命中输入 × 命中单价 + 缓存未命中输入 × 未命中单价 + 输出 × 输出单价）/ 1,000,000。
+
+`deepseek-v4-flash`、`deepseek-v4-flash-vision-exp` 兼容为 Flash 官方价格。固定模式可为别名单独设价，未单独设置时跟随 `deepseek-flash`。峰谷模式拒绝未列入官方价格表的模型，需切到固定模式并配置其单价。
+
+#### 获取配置
+
+```http
 GET /admin/pricing
 ```
 
-**响应示例：**
+返回 `mode`、当前 `period`（`fixed` / `peak` / `off_peak`）、当前生效的 `effective`、保留的 `custom`、固定模式价格 `fixed`、官方 `peak` 和 `off_peak` 价格表及 `is_default`。
 
-```json
-{
-    "custom": {
-        "my-llm-model": {
-            "input_hit": 0.5,
-            "input_miss": 1.0,
-            "output": 2.0
-        }
-    },
-    "effective": {
-        "deepseek-chat": {
-            "input_hit": 0.02,
-            "input_miss": 1.0,
-            "output": 2.0
-        },
-        "my-llm-model": {
-            "input_hit": 0.5,
-            "input_miss": 1.0,
-            "output": 2.0
-        }
-    },
-    "is_default": false,
-    "note": "价格单位为元/百万tokens"
-}
-```
+#### 设置固定价格
 
-#### 修改模型定价（对接你的付费系统）
-
-```
+```http
 PUT /admin/pricing
 Content-Type: application/json
 ```
 
 ```json
 {
-    "models": {
-        "deepseek-chat": {
-            "input_hit": 0.02,
-            "input_miss": 1.0,
-            "output": 2.0
-        },
-        "premium-model": {
-            "input_hit": 0.5,
-            "input_miss": 3.0,
-            "output": 6.0
-        }
-    }
+  "mode": "fixed",
+  "models": {
+    "deepseek-flash": {"input_hit": 0.04, "input_miss": 2, "output": 8},
+    "deepseek-v4-pro": {"input_hit": 0.30, "input_miss": 9, "output": 27}
+  }
 }
 ```
 
-保存后立即生效，用户每次请求都会按新价格扣费。
+三个价格字段均为必填非负有限数字。`models` 替换自定义价格表，默认模型继续保留。兼容旧调用：仅传 `models` 会保留当前计费模式；仅传 `mode` 会保留自定义价格。
 
-#### 恢复默认定价
+#### 启用峰谷价格
 
+```json
+{"mode": "peak_valley"}
 ```
+
+仍通过 `PUT /admin/pricing` 提交。返回保存后的完整配置。
+
+#### 恢复默认
+
+```http
 DELETE /admin/pricing
+```
+
+清除自定义价格，恢复固定模式和官方高峰单价。
+
+离线回归验证（不调用付费上游）：
+
+```bash
+python -m unittest test_billing -v
 ```
 
 ---

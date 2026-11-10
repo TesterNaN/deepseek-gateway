@@ -5,12 +5,12 @@ from copy import deepcopy
 
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse  # 👈 关键缺失导入
-from pydantic import BaseModel
-from typing import Optional, Dict
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, Dict, Literal
 
 from ..dependencies import require_admin
 from ..database import get_db, get_upstream_key, set_upstream_key
-from ..billing import get_custom_pricing, get_model_pricing, set_custom_pricing
+from ..billing import get_pricing_settings, set_custom_pricing
 from ..config import DEFAULT_CONCURRENCY_LIMIT, DEFAULT_CONCURRENCY_ENABLED, DEFAULT_PRICING
 from ..utils import generate_virtual_key, mask_key, get_client_ip
 
@@ -32,8 +32,15 @@ class KeyUpdate(BaseModel):
 class UpstreamKeyUpdate(BaseModel):
     key: str
 
+class ModelPrice(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    input_hit: float = Field(ge=0, allow_inf_nan=False)
+    input_miss: float = Field(ge=0, allow_inf_nan=False)
+    output: float = Field(ge=0, allow_inf_nan=False)
+
 class PricingUpdate(BaseModel):
-    models: Dict[str, Dict[str, float]]
+    mode: Optional[Literal['fixed', 'peak_valley']] = None
+    models: Optional[Dict[str, ModelPrice]] = None
 
 # ---------- 认证状态 ----------
 @router.get("/admin/auth/status", dependencies=[Depends(require_admin)])
@@ -183,23 +190,17 @@ async def admin_upstream_balance(request: Request):
 # ---------- 模型定价 ----------
 @router.get("/admin/pricing", dependencies=[Depends(require_admin)])
 async def admin_get_pricing():
-    custom = await get_custom_pricing()
-    effective = await get_model_pricing()
-    return {
-        "custom": custom,
-        "effective": effective,
-        "is_default": len(custom) == 0,
-        "note": "价格单位为元/百万tokens"
-    }
+    return await get_pricing_settings()
 
 @router.put("/admin/pricing", dependencies=[Depends(require_admin)])
 async def admin_set_pricing(request: Request, body: PricingUpdate):
-    effective = await set_custom_pricing(body.models)
-    logger.info(f"[IP: {get_client_ip(request)}] 模型定价已更新: {list(body.models.keys())}")
-    return {"status": "ok", "effective": effective, "is_default": len(body.models) == 0}
+    models = None if body.models is None else {k: v.model_dump() for k, v in body.models.items()}
+    await set_custom_pricing(models, body.mode)
+    logger.info(f"[IP: {get_client_ip(request)}] 模型计费配置已更新")
+    return {"status": "ok", **await get_pricing_settings()}
 
 @router.delete("/admin/pricing", dependencies=[Depends(require_admin)])
 async def admin_reset_pricing(request: Request):
-    await set_custom_pricing({})
+    await set_custom_pricing({}, 'fixed')
     logger.info(f"[IP: {get_client_ip(request)}] 模型定价已恢复默认")
-    return {"status": "ok", "effective": deepcopy(DEFAULT_PRICING), "is_default": True}
+    return {"status": "ok", **await get_pricing_settings()}
