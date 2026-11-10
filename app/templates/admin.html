@@ -74,7 +74,14 @@
                     <span class="badge" id="pricingStatus"></span>
                 </div>
                 <div class="md-card__body">
-                    <p class="helper-text">价格单位：元 / 百万 tokens。修改后立即生效。</p>
+                    <label for="pricingMode">计费模式</label>
+                    <select id="pricingMode" class="md-input" onchange="updatePricingMode()">
+                        <option value="fixed">固定价格（自定义单价，全天一致）</option>
+                        <option value="peak_valley">官方峰谷价格（按北京时间自动切换）</option>
+                    </select>
+                    <p class="helper-text">高峰：北京时间周一至周五（中国法定节假日除外）9:00–12:00、14:00–18:00；其余时间含周末全天为空闲时段，价格为高峰的一半。按请求开始时锁定单价。</p>
+                    <p class="helper-text" id="pricingPeriod"></p>
+                    <p class="helper-text">价格单位：元 / 百万 tokens。固定模式可编辑下表；切换到峰谷模式后保留固定价格配置。</p>
                     <div class="table-wrapper">
                         <table class="md-table">
                             <thead>

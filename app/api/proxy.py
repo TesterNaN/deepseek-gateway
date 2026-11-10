@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from ..config import UPSTREAM_BASE_URL, DEFAULT_STREAM_FALLBACK
 from ..database import get_upstream_key
-from ..billing import get_model_pricing, calculate_cost, deduct_balance
+from ..billing import get_pricing_settings, calculate_cost, deduct_balance
 from ..dependencies import authenticate_virtual_key, AuthInfo
 from ..utils import try_acquire_slot, release_slot
 
@@ -52,6 +52,12 @@ async def proxy(path: str, request: Request, auth: AuthInfo = Depends(authentica
     is_stream = bool(data.get('stream', False)) if isinstance(data, dict) else False
     model = data.get('model', '') if isinstance(data, dict) else ''
 
+    # 请求开始时锁定模式和单价，流式跨时段、管理端改价不影响本次请求。
+    settings = await get_pricing_settings()
+    pricing = settings['effective']
+    if model and model not in pricing and settings['mode'] == 'peak_valley':
+        raise ProxyError('该模型没有官方峰谷定价，请配置固定价格后使用', 400)
+
     # ---------- 并发控制（原子占用槽位） ----------
     if not try_acquire_slot(auth.virtual_key, auth.concurrency_enabled, auth.concurrency_limit):
         raise ProxyError(
@@ -90,8 +96,6 @@ async def proxy(path: str, request: Request, auth: AuthInfo = Depends(authentica
         release_slot(auth.virtual_key)
         logger.warning(f"上游返回 {resp.status_code}，已屏蔽并返回 500 错误")
         raise ProxyError('服务器内部错误，请联系管理员处理', 500)
-
-    pricing = await get_model_pricing()
 
     # ---------- 流式转发 ----------
     if is_stream:

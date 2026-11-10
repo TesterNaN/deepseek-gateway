@@ -297,6 +297,28 @@ function changePassword() {
 }
 
 // ---------- 定价管理 ----------
+let pricingConfig = null;
+
+function updatePricingMode() {
+    if (!pricingConfig) return;
+    const official = document.getElementById('pricingMode').value === 'peak_valley';
+    // 缓存未保存的固定单价，来回切换不会丢失编辑。
+    if (document.getElementById('pricingTableBody').dataset.mode === 'fixed') {
+        pricingConfig.fixed = collectPricingRows();
+    }
+    const tbody = document.getElementById('pricingTableBody');
+    tbody.innerHTML = '';
+    tbody.dataset.mode = official ? 'peak_valley' : 'fixed';
+    Object.entries(official ? pricingConfig.peak : pricingConfig.fixed).forEach(([model, prices]) => {
+        addPricingRow(model, prices);
+    });
+    tbody.querySelectorAll('input, button').forEach(el => el.disabled = official);
+    document.querySelectorAll('.pricing-add input, .pricing-add button').forEach(el => el.disabled = official);
+    document.getElementById('pricingPeriod').textContent = official
+        ? '下表展示官方高峰价，空闲价为下表的一半。保存后启用。'
+        : '全天使用下表固定单价。保存后启用。';
+}
+
 function loadPricing() {
     fetch('/admin/pricing')
         .then(res => res.json())
@@ -305,12 +327,15 @@ function loadPricing() {
                 showPricingMsg(data.error.message || '加载失败', 'error');
                 return;
             }
-            document.getElementById('pricingStatus').textContent = data.is_default ? '默认定价' : '自定义定价';
+            pricingConfig = data;
+            document.getElementById('pricingMode').value = data.mode;
+            document.getElementById('pricingStatus').textContent = data.mode === 'peak_valley'
+                ? '官方峰谷 · ' + (data.period === 'peak' ? '当前高峰' : '当前空闲')
+                : (data.is_default ? '默认固定定价' : '自定义固定定价');
             const tbody = document.getElementById('pricingTableBody');
             tbody.innerHTML = '';
-            Object.entries(data.effective).forEach(([model, prices]) => {
-                addPricingRow(model, prices);
-            });
+            delete tbody.dataset.mode;
+            updatePricingMode();
         })
         .catch(err => showPricingMsg('加载失败: ' + err.message, 'error'));
 }
@@ -332,7 +357,7 @@ function addPricingRow(modelName = '', prices = null) {
     const miss = prices ? prices.input_miss : parseFloat(missInput.value) || 0;
     const out = prices ? prices.output : parseFloat(outInput.value) || 0;
 
-    if (tbody.querySelector(`[data-model="${name}"]`)) {
+    if (Array.from(tbody.rows).some(row => row.dataset.model === name)) {
         alert('该模型已存在，请直接修改对应行');
         return;
     }
@@ -340,12 +365,13 @@ function addPricingRow(modelName = '', prices = null) {
     const tr = document.createElement('tr');
     tr.setAttribute('data-model', name);
     tr.innerHTML = `
-        <td><span class="model-name">${name}</span></td>
+        <td><span class="model-name"></span></td>
         <td><input type="number" class="p-hit" value="${hit}" step="0.001" min="0"></td>
         <td><input type="number" class="p-miss" value="${miss}" step="0.001" min="0"></td>
         <td><input type="number" class="p-out" value="${out}" step="0.001" min="0"></td>
         <td><button class="btn-del" onclick="removePricingRow(this)">移除</button></td>
     `;
+    tr.querySelector('.model-name').textContent = name;
     tbody.appendChild(tr);
 
     modelInput.value = '';
@@ -358,7 +384,7 @@ function removePricingRow(btn) {
     btn.closest('tr').remove();
 }
 
-function savePricing() {
+function collectPricingRows() {
     const rows = document.querySelectorAll('#pricingTableBody tr');
     const models = {};
     rows.forEach(tr => {
@@ -371,17 +397,23 @@ function savePricing() {
         };
     });
 
+    return models;
+}
+
+function savePricing() {
+    const mode = document.getElementById('pricingMode').value;
+    const models = mode === 'fixed' ? collectPricingRows() : null;
     fetch('/admin/pricing', {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({models})
+        body: JSON.stringify({mode, ...(models === null ? {} : {models})})
     })
     .then(res => res.json())
     .then(data => {
-        if (data.error) {
-            showPricingMsg('保存失败: ' + (data.error.message || data.error), 'error');
+        if (data.error || data.detail) {
+            showPricingMsg('保存失败: ' + (data.error ? (data.error.message || data.error) : JSON.stringify(data.detail)), 'error');
         } else {
-            showPricingMsg('定价已保存，共 ' + Object.keys(models).length + ' 个模型');
+            showPricingMsg(mode === 'fixed' ? '固定定价已保存' : '已启用官方峰谷计费');
             loadPricing();
         }
     })

@@ -1,10 +1,13 @@
 import json
 import logging
+import math
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 
-from fastapi import Request
+from fastapi import HTTPException, Request
+from chinese_calendar import is_holiday
 
-from .config import DEFAULT_PRICING
+from .config import DEFAULT_PRICING, DEFAULT_PRICING_MODE, MODEL_ALIASES
 from .database import get_db
 from .utils import get_client_ip
 
@@ -28,27 +31,79 @@ async def get_custom_pricing() -> dict:
     return {}
 
 
-async def get_model_pricing() -> dict:
-    """获取最终生效的定价表（自定义覆盖默认）"""
-    custom = await get_custom_pricing()
+BEIJING = timezone(timedelta(hours=8))
+
+
+def get_pricing_period(at: datetime = None) -> str:
+    """北京时间判断，周末即使调休补班也属于空闲时段。"""
+    at = at or datetime.now(BEIJING)
+    if at.tzinfo is None:
+        raise ValueError("计费时间必须包含时区")
+    local = at.astimezone(BEIJING)
+    try:
+        holiday = is_holiday(local.date())
+    except NotImplementedError as exc:
+        raise HTTPException(503, "节假日日历未覆盖当前年份，请升级 chinesecalendar") from exc
+    minute = local.hour * 60 + local.minute
+    peak = local.weekday() < 5 and not holiday and (
+        540 <= minute < 720 or 840 <= minute < 1080
+    )
+    return "peak" if peak else "off_peak"
+
+
+def with_aliases(pricing: dict) -> dict:
+    result = deepcopy(pricing)
+    for alias, canonical in MODEL_ALIASES.items():
+        result.setdefault(alias, deepcopy(result[canonical]))
+    return result
+
+
+async def get_pricing_settings(at: datetime = None) -> dict:
+    # 一次读取，避免请求过程中模式与价格来自不同版本。
+    async with get_db() as conn:
+        cursor = await conn.execute(
+            "SELECT key, value FROM config WHERE key IN ('model_pricing', 'pricing_mode')"
+        )
+        values = {row['key']: row['value'] for row in await cursor.fetchall()}
+    custom = json.loads(values.get('model_pricing', '{}'))
+    mode = values.get('pricing_mode', DEFAULT_PRICING_MODE)
     merged = deepcopy(DEFAULT_PRICING)
     merged.update(custom)
-    return merged
+    fixed = with_aliases(merged)
+    peak = with_aliases(DEFAULT_PRICING)
+    off_peak = {model: {key: value / 2 for key, value in prices.items()}
+                for model, prices in peak.items()}
+    period = get_pricing_period(at) if mode == 'peak_valley' else 'fixed'
+    return {
+        'mode': mode, 'custom': custom, 'fixed': fixed,
+        'effective': fixed if mode == 'fixed' else (peak if period == 'peak' else off_peak),
+        'period': period, 'peak': peak, 'off_peak': off_peak,
+        'is_default': not custom and mode == DEFAULT_PRICING_MODE,
+        'note': '价格单位为元/百万tokens；按请求开始时的北京时间锁定价格',
+    }
 
 
-async def set_custom_pricing(pricing: dict) -> dict:
+async def get_model_pricing(at: datetime = None) -> dict:
+    return (await get_pricing_settings(at))['effective']
+
+
+async def set_custom_pricing(pricing: dict = None, mode: str = None) -> dict:
     """保存自定义定价，返回最终生效的定价表"""
     sanitized = {}
-    for model, prices in pricing.items():
+    if mode is not None and mode not in ('fixed', 'peak_valley'):
+        raise ValueError('未知计费模式')
+    for model, prices in (pricing or {}).items():
         if not isinstance(model, str) or not model.strip():
             continue
         cleaned = {}
         for key in ("input_hit", "input_miss", "output"):
             try:
                 val = float(prices.get(key, 0))
-            except (TypeError, ValueError):
-                val = 0.0
-            cleaned[key] = max(val, 0.0)
+            except (TypeError, ValueError) as exc:
+                raise ValueError('单价必须为非负有限数字') from exc
+            if not math.isfinite(val) or val < 0:
+                raise ValueError('单价必须为非负有限数字')
+            cleaned[key] = val
         sanitized[model.strip()] = cleaned
 
     async with get_db() as conn:
@@ -58,13 +113,16 @@ async def set_custom_pricing(pricing: dict) -> dict:
                 "VALUES ('model_pricing', ?, CURRENT_TIMESTAMP)",
                 (json.dumps(sanitized, ensure_ascii=False),)
             )
-        else:
+        elif pricing is not None:
             await conn.execute("DELETE FROM config WHERE key = 'model_pricing'")
+        if mode is not None:
+            await conn.execute(
+                "INSERT OR REPLACE INTO config (key, value, updated_at) "
+                "VALUES ('pricing_mode', ?, CURRENT_TIMESTAMP)", (mode,)
+            )
         await conn.commit()
 
-    merged = deepcopy(DEFAULT_PRICING)
-    merged.update(sanitized)
-    return merged
+    return await get_model_pricing()
 
 
 # ---------- 计费 ----------
